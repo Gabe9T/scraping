@@ -41,11 +41,10 @@ if html.status_code == 200:
             if article_body:
                 # Find all paragraphs with the specified class within the article body
                 article_texts = article_body.find_all('p', class_='article-body__text article-body--padding color_dgray m-none')
-                # Loop through each paragraph
-                for text in article_texts:
-                    # Append the text to the list corresponding to the link in the dictionary
-                    links_and_texts[link].append(text.get_text(separator='\n').strip())
-                    # Error handling
+                # Join all paragraphs together to form a single block of text for easy reading can fix later if more problems
+                formatted_text = '\n'.join([text.get_text(strip=True) for text in article_texts])
+                # Add the formatted text to the dictionary
+                links_and_texts[link].append(formatted_text)
             else:
                 print("Failed to find article text in:", link)
         else:
