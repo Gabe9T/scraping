@@ -1,64 +1,54 @@
+from flask import Flask, render_template
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-url = 'https://www.opb.org/'
-html = requests.get(url)
+app = Flask(__name__)
 
-if html.status_code == 200:
-    # Create a BeautifulSoup object from the HTML content of the webpage
-    soup = BeautifulSoup(html.content, 'html.parser')
-    
-    # Find all elements with class 'story-card story-card__vert color_dgray width_full lead_media'
-    story_cards = soup.find_all(class_='story-card story-card__vert color_dgray width_full lead_media')
+def scrape_website(url):
+    html = requests.get(url)
+    data = []
 
-    # Dictionary to store links and their corresponding text
-    links_and_texts = {}
+    if html.status_code == 200:
+        soup = BeautifulSoup(html.content, 'html.parser')
+        story_cards = soup.find_all(class_='story-card story-card__vert color_dgray width_full lead_media')
 
-    # If story cards are found
-    if story_cards:
-        # Loop through each story card
-        for card in story_cards:
-            # Find the link within the story card
-            story_link = card.find('a')['href']
-            # Join base URL and relative link to get the full link
-            full_link = urljoin(url, story_link)
-            # Initialize an empty list for each link in the dictionary
-            links_and_texts[full_link] = []
+        if story_cards:
+            for card in story_cards:
+                story_link = card.find('a')['href']
+                full_link = urljoin(url, story_link)
+                story_response = requests.get(full_link)
+                if story_response.status_code == 200:
+                    story_soup = BeautifulSoup(story_response.content, 'html.parser')
+                    # Extracting h1 tag
+                    h1_tag = story_soup.find('h1', class_='m-none color_dgray article-header__headline p_bottom-xxs')
+                    if h1_tag:
+                        h1_text = h1_tag.text.strip()
+                    else:
+                        h1_text = None
+                    
+                    # Extracting article text
+                    article_texts = story_soup.find_all('p', class_='article-body__text article-body--padding color_dgray m-none')
+                    formatted_text = '\n'.join([text.get_text(strip=True) for text in article_texts])
+                    
+                    # Storing data as a dictionary
+                    data.append({
+                        'link': full_link,
+                        'title': h1_text,
+                        'text': formatted_text
+                    })
+                else:
+                    print("Failed to retrieve linked page:", story_response.status_code)
+    else:
+        print("Failed to retrieve webpage. Status code:", html.status_code)
 
-    # Iterate over the keys of the dictionary
-    for link in links_and_texts.keys():
-        # Make a request to the linked page
-        story_response = requests.get(link)
-        # If the request is successful
-        if story_response.status_code == 200:
-            print("Fetching article text from:", link)
-            # Create a BeautifulSoup object from the HTML content of the linked page
-            story_soup = BeautifulSoup(story_response.content, 'html.parser')
-            # Find the article body within the linked page
-            article_body = story_soup.find('div', class_='article-body')
-            # If the article body is found
-            if article_body:
-                # Find all paragraphs with the specified class within the article body
-                article_texts = article_body.find_all('p', class_='article-body__text article-body--padding color_dgray m-none')
-                # Join all paragraphs together to form a single block of text for easy reading can fix later if more problems
-                formatted_text = '\n'.join([text.get_text(strip=True) for text in article_texts])
-                # Add the formatted text to the dictionary
-                links_and_texts[link].append(formatted_text)
-            else:
-                print("Failed to find article text in:", link)
-        else:
-            print("Failed to retrieve linked page:", story_response.status_code)
-else:
-    print("Failed to retrieve webpage. Status code:", html.status_code)
+    return data
 
-# Print the stored links and their corresponding text for verification
-for link, text_list in links_and_texts.items():
-    print("Link:", link)
-    print("Text:")
-    for text in text_list:
-        print(text)
-    print()  # For readability
+@app.route('/')
+def index():
+    url = 'https://www.opb.org/'
+    data = scrape_website(url)
+    return render_template('index.html', data=data)
 
-# to see scrap data
-#print(html.text)
+if __name__ == '__main__':
+    app.run(debug=True)
