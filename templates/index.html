@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Scraping</title>
+</head>
+<body>
+    <h1>Web Scraping</h1>
+    <div id="scraped-data">
+        <h2>Scraped Data</h2>
+        <ul>
+            {% for item in data %}
+                <li>
+                    <strong>Title:</strong> {{ item.title }}<br>
+                    <strong>Link:</strong> <a href="{{ item.link }}">{{ item.link }}</a><br>
+                    <strong>Text:</strong><br>
+                    {{ item.text|safe }}<br><br>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
