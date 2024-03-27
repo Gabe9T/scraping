@@ -1,54 +1,51 @@
 from flask import Flask, render_template
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 
 app = Flask(__name__)
 
-def scrape_website(url):
+def scrape_sitemap(url):
+    def extract_content(url):
+        html = requests.get(url)
+        if html.status_code == 200:
+            soup = BeautifulSoup(html.content, 'html.parser')
+            
+            # Extracting title
+            title_tag = soup.find('h1', class_='m-none color_dgray article-header__headline p_bottom-xxs')
+            title = title_tag.text.strip() if title_tag else None
+            
+            # Extracting text
+            text_tags = soup.find_all('p', class_='article-body__text article-body--padding color_dgray m-none')
+            text = '\n'.join([tag.text.strip() for tag in text_tags]) if text_tags else None
+            
+            return {'title': title, 'text': text}
+        else:
+            print("Failed to retrieve linked page:", html.status_code)
+            return {'title': None, 'text': None}
+
     html = requests.get(url)
     data = []
 
     if html.status_code == 200:
-        soup = BeautifulSoup(html.content, 'html.parser')
-        story_cards = soup.find_all(class_='story-card story-card__vert color_dgray width_full lead_media')
+        soup = BeautifulSoup(html.content, 'xml')  # Use 'xml' parser for sitemap.xml
+        loc_tags = soup.find_all('loc')
 
-        if story_cards:
-            for card in story_cards:
-                story_link = card.find('a')['href']
-                full_link = urljoin(url, story_link)
-                story_response = requests.get(full_link)
-                if story_response.status_code == 200:
-                    story_soup = BeautifulSoup(story_response.content, 'html.parser')
-                    # Extracting h1 tag
-                    h1_tag = story_soup.find('h1', class_='m-none color_dgray article-header__headline p_bottom-xxs')
-                    if h1_tag:
-                        h1_text = h1_tag.text.strip()
-                    else:
-                        h1_text = None
-                    
-                    # Extracting article text
-                    article_texts = story_soup.find_all('p', class_='article-body__text article-body--padding color_dgray m-none')
-                    formatted_text = '\n'.join([text.get_text(strip=True) for text in article_texts])
-                    
-                    # Storing data as a dictionary
-                    data.append({
-                        'link': full_link,
-                        'title': h1_text,
-                        'text': formatted_text
-                    })
-                else:
-                    print("Failed to retrieve linked page:", story_response.status_code)
+        for loc_tag in loc_tags:
+            loc = loc_tag.text.strip()
+            # Check if URL is from opb.org/article domain
+            if 'https://www.opb.org/article/' in loc:
+                content = extract_content(loc)
+                data.append({'link': loc, 'title': content['title'], 'text': content['text']})
     else:
-        print("Failed to retrieve webpage. Status code:", html.status_code)
+        print("Failed to retrieve sitemap. Status code:", html.status_code)
 
     return data
 
 @app.route('/')
 def index():
-    url = 'https://www.opb.org/'
-    data = scrape_website(url)
+    sitemap_url = 'https://www.opb.org/arc/outboundfeeds/news-sitemap/?outputType=xml'
+    data = scrape_sitemap(sitemap_url)
     return render_template('index.html', data=data)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True) 
